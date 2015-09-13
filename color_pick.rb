@@ -1,14 +1,15 @@
 require 'RMagick'
+require 'paint'
 
 class RmagickCompileColor
-  # 画像ファイル
-  IMG_FILE = "coffee.jpg"
   # この百分率未満は非表示
-  RATE_MIN = 0.05
+  RATE_MIN = 0.1
   attr_accessor :colors
 
   def initialize(file, out_file)
     @img = Magick::ImageList.new(file)
+    # web safe color用の設定
+    @map = Magick::ImageList.new "netscape:"
     @out_file = out_file
     # ピクセル数
     @px_x = @img.columns       # 横
@@ -20,13 +21,19 @@ class RmagickCompileColor
   # 使用色集計
   def compile
     begin
-      @img.quantize(256)
-      @img.write(@out_file)
+      # @img.quantize(256)
+      mapped = @img.map @map, false
+      after = mapped.append false
+      after.write(Pathname.pwd.join('target', @out_file))
+      reduce_img = Magick::ImageList.new(Pathname.pwd.join('target', @out_file))
+      # @img.write(Pathname.pwd.join('target', @out_file))
+      # @img.write(@out_file)
+
       # 画像の Depth を取得
-      img_depth = @img.depth
+      img_depth = reduce_img.depth
 
       # カラーヒストグラムを取得してハッシュで集計
-      hist = @img.color_histogram.inject({}) do |hash, key_val|
+      hist = reduce_img.color_histogram.inject({}) do |hash, key_val|
         # 各ピクセルの色を16進で取得
         color = key_val[0].to_color(Magick::AllCompliance, false, img_depth, true)
         # Hash に格納
@@ -54,7 +61,7 @@ class RmagickCompileColor
       end
       puts
       puts "Image Size: #{@px_x} px * #{@px_y} px"
-      puts "TOTAL     : #{@px_total} px, #{@hist.size} colors"
+      # puts "TOTAL     : #{@px_total} px, #{@hist.size} colors"
     rescue => e
       STDERR.puts "[ERROR][#{self.class.name}.display] #{e}"
       exit 1
@@ -63,11 +70,12 @@ class RmagickCompileColor
 end
 
 
+Dir.glob("img/*").each_with_index do |file, index|
 
-# ["purple.jpg", "three.jpg", "five.jpg","coffee.jpg","coffee-blur.jpg"].each_with_index do |file, index|
-["food.jpg", "food-blur.jpg"].each_with_index do |file, index|
-  obj_main = RmagickCompileColor.new(file, "#{file.split(".").first}-reduce_color#{index+1}.jpg")
+  # obj_main = RmagickCompileColor.new(file, Pathname.pwd.join('/target/', file.split("/").last))
+  obj_main = RmagickCompileColor.new(file, file.split("/").last)
   obj_main.compile
   obj_main.display
-  puts obj_main.colors.count
+  # obj_main.colors.each{|o| puts o[:color]}
+  # puts obj_main.colors.count
 end
